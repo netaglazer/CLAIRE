@@ -1,7 +1,5 @@
 # CLAIR
-TCR-HLA binding predictor
-
-CLAIR is a deep learning based model for predicting TCR-peptide binding.
+CLAIR is a deep learning based model for predicting TCR-HLA binding.
 
 # Models:
 CD4-CD8 Predictor\
