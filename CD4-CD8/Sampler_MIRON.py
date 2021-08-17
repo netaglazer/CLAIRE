@@ -163,8 +163,6 @@ def read_data(datafile, file_key, human=True):
     train_pairs, test_pairs = train_test_split(all_pairs)
     df_train = pd.DataFrame.from_dict(train_pairs)
     df_test = pd.DataFrame.from_dict(test_pairs)
-    # print('train_pairs', df_train.head())
-    # print(pd.concat([df_train, df_test], axis=0)['t_cell_type'].value_counts())
     vc = df_train['t_cell_type'].value_counts()
     print('vc', vc)
     df_train['weight'] = df_train['t_cell_type'].apply(lambda x: weight(vc, x))
@@ -268,14 +266,6 @@ def positive_examples(pairs):
         pos_samples.append(sample)
     return pos_samples
 
-# Removing this function - assuming every (tcrb,pep) pair appears only once in a dataset
-# def is_negative(all_pairs, tcrb, pep):
-#     for sample in all_pairs:
-#         # we do not check for full sample match, this is enough
-#         if sample['tcrb'] == tcrb and sample['peptide'] == pep:
-#             return False
-#     return True
-
 
 def negative_examples(pairs, all_pairs, size):
     '''
@@ -284,8 +274,6 @@ def negative_examples(pairs, all_pairs, size):
     '''
     neg_samples = []
     i = 0
-    # tcrs = [tcr_data for (tcr_data, pep_data) in pairs]
-    # peps = [pep_data for (tcr_data, pep_data) in pairs]
     while i < size:
         # choose randomly two samples. match tcr data with pep data
         pep_sample = random.choice(pairs)
@@ -312,8 +300,6 @@ def get_examples(datafile, file_key, human):
     all_pairs, train_pairs, test_pairs = read_data(datafile, file_key, human)
     train_pos = positive_examples(train_pairs)
     test_pos = positive_examples(test_pairs)
-    # train_neg = negative_examples(train_pairs, all_pairs, 5 * len(train_pos))
-    # test_neg = negative_examples(test_pairs, all_pairs, 5 * len(test_pos))
     train = train_pos # + train_neg
     random.shuffle(train)
     test = test_pos #+ test_neg
@@ -337,8 +323,6 @@ def sample():
     t2 = time.time()
     print('done in ' + str(t2 - t1) + ' seconds')
     pass
-
-
 
 
 if __name__ == '__main__':
