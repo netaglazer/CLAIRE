@@ -45,23 +45,18 @@ def read_data(datafile, file_key, human=True):
             sample['protein'] = data['Antigen.protein'][index]
             sample['mhc'] = data['MHC'][index]
             if invalid(sample['tcrb']):
-                print(sample['tcrb'])
                 continue
             if human and data['Species'][index] != 'Human':
-                print('sdgfsdf')
                 continue
             if invalid(sample['tcra']):
                 sample['tcra'] = 'UNK'
             all_pairs.append(sample)
 
     elif file_key == 'vdjdb':
-        print('vdjdb')
         data = pd.read_csv(datafile)
-        print(data['MHC class'].value_counts())
         # first read all TRB, then unite with TRA according to sample id
         paired = {}
         for index in range(len(data)):
-            # print(data.head())
             sample = {}
             id = int(data['complex.id'][index])
             type = data['Gene'][index]
@@ -86,7 +81,6 @@ def read_data(datafile, file_key, human=True):
                 else:
                     paired[id] = sample
             if type == 'TRA':
-                print('TRA')
                 tcra = tcr
                 if invalid(tcra):
                     tcra = 'UNK'
@@ -98,7 +92,6 @@ def read_data(datafile, file_key, human=True):
 
                 paired[id] = sample
         all_pairs.extend(list(paired.values()))
-    print(len(all_pairs))
     # assimung each sample appears only once in the dataset
     train_pairs, test_pairs = train_test_split(all_pairs)
     df_train = pd.DataFrame.from_dict(train_pairs)
@@ -251,8 +244,6 @@ def get_all_examples(datafile, file_key, human):
     test_pos = positive_examples(test_pairs)
     train = train_pos + train_neg
     random.shuffle(train)
-    # test = test_pos + test_neg
-    # random.shuffle(test)
     return train#, test
 
 
@@ -267,15 +258,12 @@ def sample_all_data(datafile, file_key, train_file, test_file, human=True):
     train = get_all_examples(datafile, file_key, human)
     with open('mcpas_all_data' + '.pickle', 'wb') as handle:
         pickle.dump(train, handle)
-    # with open(str(test_file) + '.pickle', 'wb') as handle:
-    #     pickle.dump(test, handle)
-
 
 
 def sample():
     t1 = time.time()
     print('sampling mcpas...')
-    sample_data('data/vdjdb_fixed.csv', 'vdjdb', 'vdjdb_train_samples', 'vdjdb_test_samples', human=False)
+    sample_data('data/vdjdb_fixed.csv', 'vdjdb', 'vdjdb_train_samples', 'vdjdb_test_samples', human=True)
     t2 = time.time()
     pass
 
@@ -284,7 +272,7 @@ def sample():
 def sample_all():
     t1 = time.time()
     print('sampling mcpas...')
-    sample_all_data('data/McPAS-TCR.csv', 'mcpas', 'mcpas_train_samples', 'mcpas_test_samples', human=False)
+    sample_all_data()
     t2 = time.time()
     print('done in ' + str(t2 - t1) + ' seconds')
     pass
