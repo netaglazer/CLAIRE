@@ -5,18 +5,6 @@ import pickle
 import time
 from datetime import datetime as dt
 
-def weight(vc, x):
-    # print(vc)
-    # print(vc[0], vc[1])
-    # print(vc[0]/vc[1])
-    weight_1 = float(vc[0] / vc[1])
-    print(weight_1)
-    # print('vc', vc)
-    # print('weight_1', weight_1)
-    # print('weight_1', weight_1)
-    if x == 1:
-        return weight_1
-    return 1
 
 def fix_list_hla(x):
     x_to_return = []
@@ -24,6 +12,12 @@ def fix_list_hla(x):
         x_to_return.append(i.tolist()[0])
     return x_to_return
 
+def weight(vc, x):
+    weight_1 = float(vc[0] / vc[1])
+    print(weight_1)
+    if x == 1:
+        return weight_1
+    return 1
 
 def read_data(datafile, file_key, human=True):
     amino_acids = [letter for letter in 'ARNDCEQGHILKMFPSTWYV']
@@ -41,17 +35,6 @@ def read_data(datafile, file_key, human=True):
         data = data[data['t_cell_type'].isin(CD_list)]
         data = data.reset_index(drop=True)
         data['fixed_hla_list'] = data['hla'].apply(lambda x: fix_list_hla(x)) 
-
-        # cd4_df = data[data['T.Cell.Type'] == 'CD4']
-        # cd8_df = data[data['T.Cell.Type'] == 'CD8']
-        # print('cd4_df', len(cd4_df))
-        # print('cd8_df', len(cd8_df))
-        # cd8_df = cd8_df.sample(n=len(cd4_df))
-        # print('cd8_df', len(cd8_df))
-        #
-        # data = pd.concat([cd8_df, cd4_df], axis=0)
-        # print(len(data))
-
         data = data.replace({'CD8': 0, 'CD4': 1})
         print(data['t_cell_type'].value_counts())
         data = data.reset_index(drop=True)
@@ -80,19 +63,8 @@ def read_data(datafile, file_key, human=True):
 
 
     if file_key == 'cd_data':
-        print('start reading', dt.now())
-        print(dt.now())
         data = pd.read_csv(datafile, engine='python')
-        print(dt.now())
-
-        print('done read')
-        # data = data.sample(n=20000)
-        # data = data.reset_index(drop=True)
         CD_list = ['CD8', 'CD4']
-        # data = data[data['t_'].isin(CD_list)]
-        # print('len data', len(data))
-        # data['Epitope.peptide'] = data['Epitope.peptide'].apply(lambda x: invalid_pep(x))
-        # data = data[data['Epitope.peptide'] != 'invalid']
 
         for index in range(len(data)):
             sample = {}
@@ -144,7 +116,6 @@ def read_data(datafile, file_key, human=True):
                 else:
                     paired[id] = sample
             if type == 'TRA':
-                print('TRA')
                 tcra = tcr
                 if invalid(tcra):
                     tcra = 'UNK'
@@ -163,10 +134,7 @@ def read_data(datafile, file_key, human=True):
     train_pairs, test_pairs = train_test_split(all_pairs)
     df_train = pd.DataFrame.from_dict(train_pairs)
     df_test = pd.DataFrame.from_dict(test_pairs)
-    # print('train_pairs', df_train.head())
-    # print(pd.concat([df_train, df_test], axis=0)['t_cell_type'].value_counts())
     vc = df_train['t_cell_type'].value_counts()
-    print('vc', vc)
     df_train['weight'] = df_train['t_cell_type'].apply(lambda x: weight(vc, x))
     df_test['weight'] = df_test['t_cell_type'].apply(lambda x: weight(vc, x))
     train_pairs = df_train.to_dict('records')
@@ -239,7 +207,6 @@ def read_all_data(datafile, file_key, human=True):
                 sample['tcra'] = tcra
                 paired[id] = sample
         all_pairs.extend(list(paired.values()))
-    # assimung each sample appears only once in the dataset
     train_pairs = all_pairs
     return all_pairs, train_pairs
 
@@ -267,14 +234,6 @@ def positive_examples(pairs):
         sample['sign'] = 1
         pos_samples.append(sample)
     return pos_samples
-
-# Removing this function - assuming every (tcrb,pep) pair appears only once in a dataset
-# def is_negative(all_pairs, tcrb, pep):
-#     for sample in all_pairs:
-#         # we do not check for full sample match, this is enough
-#         if sample['tcrb'] == tcrb and sample['peptide'] == pep:
-#             return False
-#     return True
 
 
 def negative_examples(pairs, all_pairs, size):
@@ -312,8 +271,6 @@ def get_examples(datafile, file_key, human):
     all_pairs, train_pairs, test_pairs = read_data(datafile, file_key, human)
     train_pos = positive_examples(train_pairs)
     test_pos = positive_examples(test_pairs)
-    # train_neg = negative_examples(train_pairs, all_pairs, 5 * len(train_pos))
-    # test_neg = negative_examples(test_pairs, all_pairs, 5 * len(test_pos))
     train = train_pos # + train_neg
     random.shuffle(train)
     test = test_pos #+ test_neg
