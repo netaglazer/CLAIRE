@@ -78,18 +78,9 @@ def read_data(datafile, file_key, human=True):
     df = pd.DataFrame.from_dict(all_pairs)
     df = df.drop_duplicates()
     tcrb_list = df['tcrb'].unique().tolist()
-    #all_pairs = df.to_dict('records')
-    
-    
-    
     train_tcrb, test_tcrb = train_test_split(tcrb_list)
-    
-    
-    
     df_train = df[df['tcrb'].isin(train_tcrb)]
     df_test = df[df['tcrb'].isin(test_tcrb)]
-    #all_pairs = df.to_dict('records')
-    #train_pairs, test_pairs = train_test_split(all_pairs)
     test_pairs = df_test.to_dict('records')
     train_pairs = df_train.to_dict('records')
     all_pairs_df = pd.concat([df_train,df_test], axis = 0)
@@ -124,14 +115,6 @@ def positive_examples(pairs):
         pos_samples.append(temp_sample)
     return pos_samples
 
-# Removing this function - assuming every (tcrb,pep) pair appears only once in a dataset
-# def is_negative(all_pairs, tcrb, pep):
-#     for sample in all_pairs:
-#         # we do not check for full sample match, this is enough
-#         if sample['tcrb'] == tcrb and sample['peptide'] == pep:
-#             return False
-#     return True
-
 
 def negative_examples(pairs, all_pairs, size, s):
     '''
@@ -140,11 +123,8 @@ def negative_examples(pairs, all_pairs, size, s):
     '''
     neg_samples = []
     i = 0
-    # tcrs = [tcr_data for (tcr_data, pep_data) in pairs]
-    # peps = [pep_data for (tcr_data, pep_data) in pairs]
     while i < size:
         # choose randomly two samples. match tcr data with pep data
-        #mhc_sample = random.choice(pairs)
         mhc_sample = create_neg_hla(s)
         tcr_sample = random.choice(pairs)
         sample = {}
@@ -197,31 +177,10 @@ def sample_data(datafile, file_key, train_file, test_file,validation_file, human
 def sample():
     t1 = time.time()
     print('sampling mcpas...')
-    sample_data('data/preprocessed_McPAS (2).csv', 'mcpas', 'final_mcpas_neg_mhc_2206_train_samples', 'final_mcpas_neg_mhc_2206_test_samples','final_mcpas_neg_mhc_2206_validation_samples', human=False)
+    sample_data('data/preprocessed_McPAS (2).csv', 'mcpas', 'mcpas_train_samples', 'mcpas__test_samples','mcpas_validation_samples', human=False)
     t2 = time.time()
     print('done in ' + str(t2 - t1) + ' seconds')
     pass
-
-
-
-
-# todo sample united dataset
-
-# Notice the different negative sampling - 5 random pairs instead of 5 random TCRs per random peptide
-
-
-def get_diabetes_peptides(datafile):
-    data = pd.read_csv(datafile, engine='python')
-    d_peps = set()
-    for index in range(len(data)):
-        peptide = data['Epitope.peptide'][index]
-        if pd.isna(peptide):
-            continue
-        pathology = data['Pathology'][index]
-        if pathology == 'Diabetes Type 1':
-            d_peps.add(peptide)
-    return d_peps
-
 
 def check():
     with open('mcpas_human_train_samples.pickle', 'rb') as handle:
