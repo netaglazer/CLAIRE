@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 from pytorch_lightning.logging import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping
-from Loader_2 import SignedPairsDataset, DiabetesDataset, get_index_dicts #, SinglePeptideDatasetWeighted
+from Loader import SignedPairsDataset, DiabetesDataset, get_index_dicts #, SinglePeptideDatasetWeighted
 from Models import PaddingAutoencoder, AE_Encoder, LSTM_Encoder, ERGO
 import pickle
 from sklearn.model_selection import KFold
@@ -26,9 +26,6 @@ import logging
 _logger = logging.getLogger("nni")
 
 FINAL_RESULTS = 0
-
-print('done import')
-# keep up the good work :)
 
 def Average(lst):
     return sum(lst) / len(lst)
@@ -115,10 +112,6 @@ class ERGOLightning(pl.LightningModule):
             self.output_layer2 = nn.Linear(int(np.sqrt(self.mlp_dim2)), 1)
 
     def forward(self, tcr_batch, mhc_batch, cat_batch, t_type_batch):
-        # print('mhc shape', mhc_batch)
-        # PEPTIDE Encoder:
-        # print('pep_batch',*pep_batch)
-        # pep_encoding = self.pep_encoder(*pep_batch)
         # TCR Encoder:
         tcra, tcrb = tcr_batch
         # print(tcrb)
@@ -237,7 +230,6 @@ class ERGOLightning(pl.LightningModule):
                 auc = 0.5   
         print(auc)
         
-        
         fpr, tpr, threshold = metrics.roc_curve(y.detach().cpu().numpy(), y_hat.detach().cpu().numpy())
         roc_auc = metrics.auc(fpr, tpr)
         
@@ -245,7 +237,6 @@ class ERGOLightning(pl.LightningModule):
         plt.plot(fpr, tpr, 'black')
         plt.rcParams["font.family"] = "Times New Roman"
         plt.rcParams.update({'font.size': 8})
-        
         plt.legend(loc = 'lower right')
         plt.plot([0, 1], [0, 1],color = 'black', linestyle='dashed')
         plt.xlim([0, 1])
@@ -253,9 +244,7 @@ class ERGOLightning(pl.LightningModule):
         plt.ylabel('True Positive Rate')
         plt.xlabel('False Positive Rate')
         plt.title('McPAS')
-        
-
-        plt.savefig('study/mcpas_2206_{0}_{1}.png'.format(str(auc),str(acc)))
+        plt.savefig('{0}.png'.format(self.dataset)
         plt.clf()
         
         
@@ -322,7 +311,6 @@ class ERGOLightning(pl.LightningModule):
     @pl.data_loader
     def val_dataloader(self):
         # OPTIONAL
-        
         with open(self.dataset + '_train_samples.pickle', 'rb') as handle:
             test = pickle.load(handle)
         with open(self.dataset + '_train_samples.pickle', 'rb') as handle:
@@ -339,45 +327,6 @@ class ERGOLightning(pl.LightningModule):
     def test_dataloader(self):
         # OPTIONAL
         pass
-
-
-# class ERGOWeighted(ERGOLightning):
-#     def __init__(self, hparams):
-#         super().__init__(hparams)
-#         self.weight_factor = hparams.weight_factor
-#         self.diabetes_factor = hparams.diabetes_factor
-#
-#     @pl.data_loader
-#     def train_dataloader(self):
-#         # REQUIRED
-#         # REQUIRED
-#         with open('Samples/' + self.dataset + '_train_samples.pickle', 'rb') as handle:
-#             train = pickle.load(handle)
-#         train_dataset = SinglePeptideDatasetWeighted(train, get_index_dicts(train), weight_factor=self.weight_factor, d_weight_factor=self.diabetes_factor)
-#         return DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=10,
-#                           collate_fn=lambda b: train_dataset.collate(b, tcr_encoding=self.tcr_encoding_model,
-#                                                                      cat_encoding=self.cat_encoding))
-#
-
-
-
-class ERGODiabetes(ERGOLightning):
-
-    def __init__(self, hparams):
-        super().__init__(hparams)
-        self.weight_factor = hparams.weight_factor
-
-    @pl.data_loader
-    def train_dataloader(self):
-        # REQUIRED
-        with open(self.dataset + '_train_samples.pickle', 'rb') as handle:
-            train = pickle.load(handle)
-        train_dataset = DiabetesDataset(train, get_index_dicts(train), weight_factor=self.weight_factor)
-        return DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=10,
-                          collate_fn=lambda b: train_dataset.collate(b, tcr_encoding=self.tcr_encoding_model,
-                                                                     cat_encoding=self.cat_encoding))
-
-
 
 
 def tcr_mhc(dict):
@@ -436,32 +385,11 @@ def tcr_mhc(dict):
 
 
 if __name__ == '__main__':
-    
-    #cross_validation
-
-    try:
-        dict = nni.get_next_parameter()
-        print('dict: ', dict)
-    except Exception as exception:
-        _logger.exception(exception)
-
-        print('exception')
-        raise
 
     dict = {'lr': 0.0009, 'dropout': 0.1, 'l2': 0.0007, 'encoding_dim' : 100}
     tcr_mhc(dict)
-    print('FINAL_RESULTS', FINAL_RESULTS)
-    nni.report_final_result(Average(final_results))
+    #nni.report_final_result(Average(final_results))
     pass
     
     
-    
-#lr:0.0005
-#dropout:0.4
-#l2:0.0005
-
-# NOTE: fix sklearn import problem with this in terminal:
-# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/dsi/speingi/anaconda3/lib/
-
-# see logs
-# tensorboard --logdir dir
+ 
