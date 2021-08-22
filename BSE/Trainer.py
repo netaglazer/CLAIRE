@@ -94,18 +94,7 @@ class ERGOLightning(pl.LightningModule):
             else:
                 with open('validation_mcpas_evaluation_train_v.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
                         train = pickle.load(handle)
-            
-            
-            #with open('preproc_mcpas_evaluation_train.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
-            #    train = pickle.load(handle)
-                
-                
-
-            #with open('weighted_train_eval_list_4.pickle', 'rb') as handle:
-            #    train = pickle.load(handle)
-
-            #with open( 'emerson_train_eval_list_4.pickle', 'rb') as handle:  #500 
-             #   train = pickle.load(handle)
+          
             vatox, vbtox, jatox, jbtox, mhctox = get_index_dicts(train)
             self.v_vocab_size = len(vatox) + len(vbtox)
             self.j_vocab_size = len(jatox) + len(jbtox)
@@ -120,8 +109,6 @@ class ERGOLightning(pl.LightningModule):
                 self.tcra_encoder = LSTM_Encoder(self.aa_embedding_dim, self.lstm_dim, self.dropout_rate)
             self.tcrb_encoder = LSTM_Encoder(self.aa_embedding_dim, self.lstm_dim, self.dropout_rate)
             self.encoding_dim = self.lstm_dim
-        # Peptide Encoder
-        self.pep_encoder = LSTM_Encoder(self.aa_embedding_dim, self.lstm_dim, self.dropout_rate)
         # Categorical
         self.cat_encoding = hparams.cat_encoding
         if hparams.cat_encoding == 'embedding':
@@ -156,8 +143,6 @@ class ERGOLightning(pl.LightningModule):
             self.output_layer2 = nn.Linear(int(np.sqrt(self.mlp_dim2)), 1)
 
     def forward(self, tcr_batch, mhc_batch, cat_batch, t_type_batch):
-        # PEPTIDE Encoder:
-        # pep_encoding = self.pep_encoder(*pep_batch)
         # TCR Encoder:
         tcra, tcrb = tcr_batch
         tcrb_encoding = self.tcrb_encoder(*tcrb)
@@ -202,17 +187,13 @@ class ERGOLightning(pl.LightningModule):
         return output
 
     def step(self, batch):
-        #print('batch:  ', batch[0])
         # batch is none (might happen in evaluation)
         if not batch:
             return None
         # batch output (always)
         tcra, tcrb, mhc, va, vb, ja, jb, t_type, sign, weight,org_tcrb = batch
-        #print('va: ', va)
-        # print('step', mhc)
         if self.tcr_encoding_model == 'AE':
             len_a = torch.sum(tcra, dim=[1, 2]) - 1
-        # len_p = torch.sum((pep > 0).int(), dim=1)
         if self.use_alpha:
             missing = (len_a == 0).nonzero(as_tuple=True)
             full = len_a.nonzero(as_tuple=True)
@@ -227,8 +208,6 @@ class ERGOLightning(pl.LightningModule):
             # there are samples without alpha
             if len(missing[0]):
                 mhc_mis = (mhc[missing], )
-                #print('mhc_mis', mhc_mis)
-
                 t_type_mis = t_type[missing]
                 cat_mis = (va[missing], vb[missing], ja[missing], jb[missing])#,
                 #print('step forworddddddd')
@@ -237,16 +216,14 @@ class ERGOLightning(pl.LightningModule):
             # there are samples with alpha
             if len(full[0]):
                 mhc_ful = (mhc[full], )
-                # print('mhc_ful', mhc_ful)
                 cat_ful = (va[full], vb[full],
                            ja[full], jb[full])
                            # mhc[full])
                 t_type_ful = t_type[full]
-                #print('step   **********************')
                 y_hat_ful = self.forward(tcr_batch_ful,mhc_ful, cat_ful, t_type_ful).squeeze()
                 y_hat[full] = y_hat_ful
         y = sign
-        return y, y_hat, weight, #return all values to calculate new accuracy
+        return y, y_hat, weight, 
 
     def training_step(self, batch, batch_idx):
         # REQUIRED
@@ -269,7 +246,6 @@ class ERGOLightning(pl.LightningModule):
             return None
 
     def validation_end(self, outputs):
-        #print(outputs)
         # OPTIONAL
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         y = torch.cat([x['y'].view(-1, 1) for x in outputs])
@@ -278,33 +254,19 @@ class ERGOLightning(pl.LightningModule):
         tcrb  = [item for sublist in tcrb for item in sublist]
         print(len(y), len(y_hat), len(tcrb[0]))
         df = pd.DataFrame(list(zip(tcrb, y_hat.view(-1, 1).tolist(), y.view(-1, 1).tolist())), columns =['tcrb', 'y_hat','y'])
-        
         df['tcrb'] = df['tcrb'].apply(lambda x: x[0])
         df['y_hat'] = df['y_hat'].apply(lambda x: x[0])
         df['y'] = df['y'].apply(lambda x: x[0])
-        #df = df[df['y'] == 1]
-        #print(df.head())
         df = df.sort_values(by=['tcrb', 'y_hat'], ascending=False)
-        #df_1 = df_1.sort_values(by=['tcrb', 'y_hat'], ascending=False)
         df = df.drop_duplicates(['tcrb'])
-        
-        
-        # auc = roc_auc_score(y.cpu(), y_hat.cpu())
         acc = accuracy_score(y.detach().cpu().numpy(), y_hat.detach().cpu().numpy().round())
-        print('\n')
-        print('********************')
         print('NEW_ACC = ', len(df[df['y'] == 1])/len(df))
         print('acc=', acc)
         auc = roc_auc_score(y.detach().cpu().numpy(), y_hat.detach().cpu().numpy())
         print('auc=', auc)
-        print('\n')
-        
-        
         fpr, tpr, threshold = metrics.roc_curve(y.detach().cpu().numpy(), y_hat.detach().cpu().numpy())
         roc_auc = metrics.auc(fpr, tpr)
-        
-        # method I: plt
-        #plt.title('Receiver Operating Characteristic')
+
         plt.figure(figsize=(3.5,3.5))
         plt.plot(fpr, tpr, 'black')
         plt.rcParams["font.family"] = "Times New Roman"
@@ -323,11 +285,8 @@ class ERGOLightning(pl.LightningModule):
         
         n = y_hat.detach().cpu().numpy()
         k = np.where(n > 0.5,int(1),int(0))
-        #print('confusion_matrix')
-        #print(confusion_matrix(y.detach().cpu().numpy(), k))
         C = confusion_matrix(y.detach().cpu().numpy(), k)
         t = y.detach().cpu().numpy()
-        #print(len(y.detach().cpu().numpy()), len(k))
         tn = 0
         fp = 0
         tp = 0
@@ -367,16 +326,7 @@ class ERGOLightning(pl.LightningModule):
 
     @pl.data_loader
     def train_dataloader(self):
-        # REQUIRED
-        #print('dataset', self.dataset)
-        #train_eval_list_4
-        
-        #with open('emerson_train_eval_list_4.pickle', 'rb') as handle:
-        #with open('Emerson_split_15000_tcrb_train_samples_with_y_hat_cd.pickle', 'rb') as handle:
-        #**with open('final_4_LE_split_new_counts_tcrb_mcpas_train_samples_cv.pickle', 'rb') as handle:
-        #with open('validation_train_eval_list_4_1306.pickle', 'rb') as handle:
-        #    train = pickle.load(handle)
-            
+
         if self.stage == 1:
             with open('preproc_mcpas_train_0707.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
                 train = pickle.load(handle)
@@ -402,16 +352,6 @@ class ERGOLightning(pl.LightningModule):
         with open('new_dataset_train_samples.pickle', 'rb') as handle: #STAGE ONE NEW DATASET
             train_new = pickle.load(handle)
             
-        #train = train_MCPAS + train_memory + train_new
-                    
-        
-                
-        #with open('preproc_mcpas_evaluation_train.pickle', 'rb') as handle: ##STAGE 2 NEW MCPAS 
-        #        train = pickle.load(handle)
-                
-        #with open('weighted_train_eval_list_4.pickle', 'rb') as handle:
-        #    train = pickle.load(handle)
-        
         
         print('load train')
         train_dataset = SignedPairsDataset(train, get_index_dicts(train))
@@ -420,138 +360,15 @@ class ERGOLightning(pl.LightningModule):
                                                                      cat_encoding=self.cat_encoding))
 
         return dl
-        #df_train.to_pickle('train_head_y_hat_cd.pickle')
-        #df_train = df_train.sort_values(by=['y_hat'])
-        #df_train = df_train.sample(int(0.05*len(df_train)))
-        #df_train = df_train.head(int(0.01*len(df_train)))
-        #print(len(df_train))
-        
-        #hlas = df_train.mhc.unique()
-        #positive_df = df_train[df_train['sign'] == 1]
-        #positive_hla = positive_df.mhc.value_counts()
-        #negative_df = df_train[df_train['sign'] == 0]
-        #negative_hla = negative_df.mhc.value_counts()
-        #print(positive_hla)
-        #min_dict = {}
-        #for i in hlas:
-        #    if  i in list(positive_hla.index) and i in list(negative_hla.index):
-        #        m = min(positive_hla[i],negative_hla[i])
-        #        min_dict[i] = m
-            
-        #dfs = []
-        #for i in list(min_dict.keys()):
-        #    temp_neg = negative_df[negative_df['mhc'] == i]
-        #    temp_neg = temp_neg.head(min_dict[i])# + int((len(temp_neg)-min_dict[i])/11))
-        #    temp_pos = positive_df[positive_df['mhc'] == i]
-        #    temp_pos = temp_pos.head(min_dict[i])# + int((len(temp_pos)-min_dict[i])/11))
-        #    temp_df = pd.concat([temp_neg, temp_pos], axis = 0)
-        #    print(len(temp_pos), len(temp_neg), len(temp_df))
-        #    dfs.append(temp_df)
-        
-        #df_train = pd.concat(dfs, axis = 0).sample(frac=1)
-
-        #df_train.to_pickle('train_head_y_hat_cd_15000.pickle')
-        #print('train_ti pickle')
-
-                                                                     
-    
 
     @pl.data_loader
     def val_dataloader(self):
-        # OPTIONAL
-        #print('dataset', self.dataset)
-        #test_eval_list_4
-        #with open('emerson_test_eval_list_4.pickle', 'rb') as handle: #500
-        #with open('Emerson_split_15000_tcrb_test_samples_with_y_hat_cd.pickle', 'rb') as handle: EMERSON DATASET IN STAGE **ONE**
-        #with open('final_4_LE_split_new_counts_tcrb_mcpas_train_samples.pickle', 'rb') as handle:
-        #with open('emerson_test_eval_list_4_15000.pickle', 'rb') as handle:   #FINAL CHECK OF PREPORMENCE ON EMERSON DATASET IN STAGE **TWO**
-        #    test = pickle.load(handle)
-        
-        #with open('final_4_LE_split_new_counts_tcrb_mcpas_test_samples_cv.pickle', 'rb') as handle: #STAGE 1 OLD MCPAS 
-        #with open('validation_test_eval_list_4_1306.pickle', 'rb') as handle:
-        #    test = pickle.load(handle)
-        
-        
+
         with open('final_mcpas_neg_mhc_2206_test_samples.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
               test = pickle.load(handle)
               df = pd.DataFrame(test)
               df['mhc'] = df['mhc'].apply(lambda x: x.split('-')[1][:1] + '*' + x.split('-')[1][1:])
               test = df.to_dict('records')
-        
-        #with open('memory_train_v_people_test.pickle', 'rb') as handle: ##STAGE 1 NEW MEMORY 
-        #        test = pickle.load(handle)
-                
-        #with open('Emerson_split_15000_tcrb_test_samples_with_y_hat_cd.pickle', 'rb') as handle: #EMERSON DATASET IN STAGE **ONE**
-        #    test = pickle.load(handle)
-        #df_test = pd.DataFrame.from_dict(test)
-        #TAKE ONLY THE MOST CD8 - NESSECERY ONLY AT EMERSON DATASET STAGE1
-        #df_test = pd.DataFrame.from_dict(test)
-        #del test
-        #df_test.to_pickle('test_head_y_hat_cd.pickle')
-        #df_test = df_test.sort_values(by=['y_hat'])
-        #print(int(0.01*len(df_test)))
-        #df_test = df_test.head(int(0.01*len(df_test)))
-        
-        ############################################################
-        #hlas = df_test.mhc.unique()
-        #positive_df = df_test[df_test['sign'] == 1]
-        #positive_hla = positive_df.mhc.value_counts()
-        #negative_df = df_test[df_test['sign'] == 0]
-        #negative_hla = negative_df.mhc.value_counts()
-
-        #min_dict = {}
-        #for i in hlas:
-        #    if  i in list(positive_hla.index) and i in list(negative_hla.index):
-        #        m = min(positive_hla[i],negative_hla[i])
-        #        min_dict[i] = (min(positive_hla[i],negative_hla[i]))
-            
-        #dfs = []
-        #print('min_dict.', min_dict.keys())
-        #for i in list(min_dict.keys()):
-            #print(i)
-            #if(i == 'HLA-A*03' or i == 'HLA-B*07'):
-        #    temp_neg = negative_df[negative_df['mhc'] == i]
-        #    temp_neg = temp_neg.head(min_dict[i])# + int((len(temp_neg)-min_dict[i])/15))
-        #    temp_pos = positive_df[positive_df['mhc'] == i]
-        #    temp_pos = temp_pos.head(min_dict[i])# + int((len(temp_pos)-min_dict[i])/15))
-        #    print(len(temp_pos), len(temp_neg))
-        #    temp_df = pd.concat([temp_neg, temp_pos], axis = 0)
-            #else:
-                #temp_df = df_test[df_test['mhc'] == i]
-         #   dfs.append(temp_df)
-        #df_test = pd.concat(dfs).sample(frac=1)
-        
-        #print('load_test')
-        
-        #df_test['mhc'] = df_test['mhc'].apply(lambda x : x.split('-')[1])
-        
-        #test = df_test.to_dict('records')
-        #del df_test
-        
-
-        #CHECK ON NEW_DATASET
-        #with open('new_dataset_test_samples.pickle','rb') as handle: #NEW DATASET STAGE ONE
-        #    test = pickle.load(handle)
-        #df_test = pd.DataFrame(test)
-        #df_test['mhc'] = df_test['mhc'].apply(lambda x : x.split('-')[1])
-        #test = df_test.to_dict('records')
-        
-        #CHELK ON MEMORY
-        #with open('memory_train_v_people_test.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
-        #      test = pickle.load(handle)
-              
-        #check random accuracy
-        #test_df = pd.DataFrame(test)
-        #test_df = test_df[test_df['sign'] == 0]
-        #test_df['sign'] = test_df['sign'].apply(lambda x: randrange(2))
-        #test = test_df.to_dict('records')
-
-        #with open('test_eval_list_4.pickle', 'rb') as handle:  
-        #    test = pickle.load(handle)
-        
-        #with open('final_4_LE_split_new_counts_tcrb_mcpas_train_samples_cv.pickle', 'rb') as handle:
-        #with open('validation_train_eval_list_4_1306.pickle', 'rb') as handle: #STAGE 2 OLS MC[AS
-        #    train = pickle.load(handle)
         
         if self.stage == 1:
             with open('preproc_mcpas_train_0707.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
@@ -571,9 +388,7 @@ class ERGOLightning(pl.LightningModule):
         else:
             with open('validation_mcpas_evaluation_train_v.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
                     train = pickle.load(handle)
-                    
-                    
-                    
+
         with open('preproc_mcpas_train_0707.pickle', 'rb') as handle: ##STAGE 1 NEW MCPAS 
             train_MCPAS = pickle.load(handle)
             
@@ -582,95 +397,13 @@ class ERGOLightning(pl.LightningModule):
             
         with open('new_dataset_train_samples.pickle', 'rb') as handle: #STAGE ONE NEW DATASET
             train_new = pickle.load(handle)
-        #train = train_MCPAS + train_memory + train_new
-            
-        #with open('preproc_mcpas_evaluation_train.pickle', 'rb') as handle: ##STAGE 2 NEW MCPAS 
-        #        train = pickle.load(handle)
-            
-        #with open('weighted_train_eval_list_4.pickle', 'rb') as handle:
-        #    train = pickle.load(handle)
 
         test_dataset = SignedPairsDataset(test, get_index_dicts(train))
         l =   DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=10,
                           collate_fn=lambda b: test_dataset.collate(b, tcr_encoding=self.tcr_encoding_model,
                                                                      cat_encoding=self.cat_encoding))
 
-        #df_test = pd.DataFrame.from_dict(test)
-        #del test
-        #df_test.to_pickle('test_head_y_hat_cd.pickle')
-        #df_test = df_test.sort_values(by=['y_hat'])
-        #print(int(0.01*len(df_test)))
-        #df_test = df_test.head(int(0.01*len(df_test)))
-        
-        ############################################################
-        #hlas = df_test.mhc.unique()
-        #positive_df = df_test[df_test['sign'] == 1]
-        #positive_hla = positive_df.mhc.value_counts()
-        #negative_df = df_test[df_test['sign'] == 0]
-        #negative_hla = negative_df.mhc.value_counts()
-        #print(positive_hla)
-        #print(negative_hla)
-        
-        #min_dict = {}
-        #for i in hlas:
-        #    if  i in list(positive_hla.index) and i in list(negative_hla.index):
-        #        m = min(positive_hla[i],negative_hla[i])
-        #        min_dict[i] = (min(positive_hla[i],negative_hla[i]))
-            
-        #dfs = []
-        #print('min_dict.', min_dict.keys())
-        #for i in list(min_dict.keys()):
-            #print(i)
-            #if(i == 'HLA-A*03' or i == 'HLA-B*07'):
-         #   temp_neg = negative_df[negative_df['mhc'] == i]
-         #   temp_neg = temp_neg.head(min_dict[i])# + int((len(temp_neg)-min_dict[i])/15))
-         #   temp_pos = positive_df[positive_df['mhc'] == i]
-         #   temp_pos = temp_pos.head(min_dict[i])# + int((len(temp_pos)-min_dict[i])/15))
-         #   print(len(temp_pos), len(temp_neg))
-         #   temp_df = pd.concat([temp_neg, temp_pos], axis = 0)
-            #else:
-                #temp_df = df_test[df_test['mhc'] == i]
-          #  dfs.append(temp_df)
-        #df_test = pd.concat(dfs).sample(frac=1)
 
-
-        #################################################
-        #df_test.to_pickle('test_head_y_hat_cd.pickle')
-        
-        
-        #with open('Emerson_split_15000_tcrb_train_samples_with_y_hat_cd.pickle', 'rb') as handle:
-
-        #with open('emerson_train_eval_list_4.pickle', 'rb') as handle: #500
-        #    train = pickle.load(handle)
-        #df_train = pd.DataFrame.from_dict(train)
-        #del train
-        #df_train = df_train.sort_values(by=['y_hat'])
-        #df_train = df_train.head(int(0.01*len(df_train)))
-        #print('len train', len(df_train))
-        #hlas = df_train.mhc.unique()
-        #positive_df = df_train[df_train['sign'] == 1]
-        #positive_hla = positive_df.mhc.value_counts()
-        #negative_df = df_train[df_train['sign'] == 0]
-        #negative_hla = negative_df.mhc.value_counts()
-        
-        #min_dict = {}
-        #for i in hlas:
-        #    if  i in list(positive_hla.index) and i in list(negative_hla.index):
-        #        m = min(positive_hla[i],negative_hla[i])
-        #        min_dict[i] = (min(positive_hla[i],negative_hla[i]))
-            
-        #dfs = []
-        #print('min_dict.', min_dict.keys())
-        #for i in list(min_dict.keys()):
-        #    temp_neg = negative_df[negative_df['mhc'] == i]
-        #    temp_neg = temp_neg.head(min_dict[i])# + int((len(temp_neg)-min_dict[i])/10))
-        #    temp_pos = positive_df[positive_df['mhc'] == i]
-        #    temp_pos = temp_pos.head(min_dict[i])# + int((len(temp_pos)-min_dict[i])/10))
-        #    temp_df = pd.concat([temp_neg, temp_pos], axis = 0)
-        #    dfs.append(temp_df)
-        #df_train = pd.concat(dfs).sample(frac=1)
-        #train = df_train.to_dict('records')
-        #del df_train
         
         return l
 
@@ -678,8 +411,6 @@ class ERGOLightning(pl.LightningModule):
     def test_dataloader(self):
         # OPTIONAL
         pass
-
-
 
 
 def tcr_mhc_2(dict):
@@ -738,18 +469,7 @@ def tcr_mhc_2(dict):
 
 
 if __name__ == '__main__':
-    # ergo_ii_experiment()
-    # weighted_ergo_ii_experiment_all_data()
-    # weighted_ergo_ii_experiment()
-    # diabetes_experiment()
-    # ergo_ii_tuning()
-    
-    
-    #final_results = []
-    #mcpas_test = pd.read_pickle('final_4_LE_split_new_counts_tcrb_mcpas_test_samples.pickle')
-    #mcpas_train = pd.read_pickle('final_4_LE_split_new_counts_tcrb_mcpas_train_samples.pickle')
-    #mcpas = np.array(mcpas_test + mcpas_train)
-    #kf = KFold(2)
+
     
     try:
         dict = nni.get_next_parameter()
@@ -757,28 +477,10 @@ if __name__ == '__main__':
         _logger.exception(exception)
         print('exception')
         raise
-    #for train_index, test_index in kf.split(mcpas):
-    #    train = mcpas[train_index]
-        #print(len())
-        #with open('final_4_LE_split_new_counts_tcrb_mcpas_train_samples_cv.pickle', 'wb') as handle:
-        #    pickle.dump(train, handle)
 
-        #test = mcpas[test_index]
-        #with open('final_4_LE_split_new_counts_tcrb_mcpas_test_samples_cv.pickle', 'wb') as handle:
-        #    pickle.dump(test, handle)
-        #args = prepare(RCV_CONFIG)
-        #of 0.005, drop out of 0.2, and learning rate of 0.0005
     dict = {'lr': 0.0007, 'dropout': 0.2, 'l2': 0.001, 'encoding_dim' : 100}
-    print(dict)
-    print(dict)
-    tcr_mhc_2(dict)
-    #final_results.append(FINAL_RESULTS)
-    #print('FINAL_RESULTS', FINAL_RESULTS)
 
-        
-    # args = prepare(RCV_CONFIG)
-    #dict = {'lr': 0.0001, 'dropout': 0.2, 'l2': 0.0007, 'encoding_dim' : 100}
-    #tcr_mhc_2(dict)
+    tcr_mhc_2(dict)
     nni.report_final_result(Average(final_results))
     pass
 
