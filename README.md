@@ -13,7 +13,7 @@ $ pip install -r requirements.txt
 `
 
 # **Prepormence:**
-![GitHub Logo](/images/figure_two.png)
+![GitHub Logo](/images/figure_two.jpg)
 
 ### BSE data
 ![GitHub Logo](/images/first_figure.png)
