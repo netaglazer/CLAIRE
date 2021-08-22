@@ -14,6 +14,6 @@ $ pip install -r requirements.txt
 
 # **Prepormence:**
 
-
+![GitHub Logo](/images/first_figure.png)
 
 
