@@ -1,5 +1,5 @@
-# CLAIR
-CLAIR is a deep learning based model for predicting TCR-HLA binding.
+# CLAIRE
+CLAIRE is a deep learning based model for predicting TCR-HLA binding.
 
 # Models:
 CD4-CD8 Predictor\
